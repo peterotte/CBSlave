@@ -50,7 +50,15 @@ architecture RTL of trigger is
 			VN2andVN1 : in  STD_LOGIC_VECTOR (7 downto 0)
 		);
 	end component;
-
+	
+	component delay_by_shiftregister is
+		generic (
+			DELAY : integer);
+		port (
+			CLK				: in	STD_LOGIC;
+			SIG_IN		: in	STD_LOGIC;
+			DELAY_OUT : out STD_LOGIC);
+	end component delay_by_shiftregister;
 	--------------------------------------------
 
 	--------------------------------------------
@@ -63,20 +71,25 @@ architecture RTL of trigger is
 	constant BASE_TRIG_EnableInputs2 : sub_Address					:= x"52"; --r/w
 	constant BASE_TRIG_EnableInputs3 : sub_Address					:= x"53"; --r/w
 	
+	constant BASE_TRIG_InputPattern0 : sub_Address					:= x"10"; --r/w
+	constant BASE_TRIG_InputPattern1 : sub_Address					:= x"11"; --r/w
+	constant BASE_TRIG_InputPattern2 : sub_Address					:= x"12"; --r/w
+	constant BASE_TRIG_InputPattern3 : sub_Address					:= x"13"; --r/w
+	
 	constant BASE_TRIG_VN2andVN1Read : sub_Address      			:= x"22"; -- r
 	
 	constant BASE_TRIG_FIXED : sub_Address 					:= x"f0" ; -- r
-	constant TRIG_FIXED : std_logic_vector(31 downto 0) := x"1211210c"; 
+	constant TRIG_FIXED : std_logic_vector(31 downto 0) := x"0700000d"; 
 	--------------------------------------------
 	
 	signal EnableInputs : STD_LOGIC_Vector(32*4-1 downto 0) := (others => '1');
+	signal InputPatterns : STD_LOGIC_Vector(32*4-1 downto 0) := (others => '0');
+
+	signal L2strobe, L2strobe_prev : std_logic;
 	
-	constant Trig_In_Number_Start : integer := 0; -- Starting with 0
-	constant Trig_In_Number_Stop : integer := 32*4-1; -- Starting with 0
-	
-	signal trig_in_enlarged : std_logic_vector (Trig_In_Number_Stop downto Trig_In_Number_Start);
-	signal post_trig_in : std_logic_vector(Trig_In_Number_Stop downto Trig_In_Number_Start);
-	signal trig_in_enlarged_saved, trig_in_enlarged_LastTransfered : std_logic_vector (223 downto 0);
+	signal trig_in_enlarged : std_logic_vector (127 downto 0);
+	signal post_trig_in : std_logic_vector(127 downto 0);
+	signal post_trig_in_delayed : std_logic_vector(127 downto 0);
 		
 	--------------------------------------------
 	-- Signals For PhiAngle Trigger
@@ -95,7 +108,7 @@ begin
 	-- stretch it to minimum 10*10ns
 	------------------------------------------------------------------------------------------
 	post_trig_in_stretcher:
-	for i in Trig_In_Number_Start to Trig_In_Number_Stop generate
+	for i in 0 to 127 generate
 		begin
 			single_stretcher: InputStretcher generic map (Duration => 6) 
 				PORT map(
@@ -117,6 +130,38 @@ begin
 	trig_out(15+32 downto 0+32) <= PhiAngleSectionOut; --INOUT4
 	------------------------------------------------------------------------------------------
 
+  ------------------------------------------------------------------------------------------
+	-- 1c. Delay the input signals,
+	-- and latch them on rising edge of L2strobe (clocked from nim_in) 
+	------------------------------------------------------------------------------------------
+
+	process begin
+	  wait until rising_edge(clock100);
+	  L2strobe <= nim_in;
+	  L2strobe_prev <= L2strobe;
+	end process;
+			
+	inputpatterns_delayed_latch_1 : 
+	for i in 0 to 127 generate
+		begin
+			single_delay_by_shiftregister : delay_by_shiftregister
+				generic map (
+					DELAY => 20) -- needs to be measured
+				port map (
+					CLK				=> clock100,
+					SIG_IN		=> post_trig_in(i),
+					DELAY_OUT => post_trig_in_delayed(i));
+			process begin
+			  wait until rising_edge(clock100);
+			  if L2strobe = '1' and L2strobe_prev = '0' then
+				  InputPatterns(i) <= post_trig_in_delayed(i);	
+				end if;
+			end process;	
+			
+		end generate;
+		
+
+		
 
 	------------------------------------------------------------------------------------------
 	-- 2.   4fold ORs
@@ -191,6 +236,15 @@ begin
 					u_data_o(31 downto 0) <= EnableInputs(31+32*2 downto 0+32*2);
 				when BASE_TRIG_EnableInputs3 =>
 					u_data_o(31 downto 0) <= EnableInputs(31+32*3 downto 0+32*3);
+				when BASE_TRIG_InputPattern0 =>
+					u_data_o(31 downto 0) <= InputPatterns(31 downto 0);
+				when BASE_TRIG_InputPattern1 =>
+					u_data_o(31 downto 0) <= InputPatterns(31+32*1 downto 0+32*1);
+				when BASE_TRIG_InputPattern2 =>
+					u_data_o(31 downto 0) <= InputPatterns(31+32*2 downto 0+32*2);
+				when BASE_TRIG_InputPattern3 =>
+					u_data_o(31 downto 0) <= InputPatterns(31+32*3 downto 0+32*3);
+					
 				when others =>
 					null;
 			end case;
