@@ -50,7 +50,7 @@ architecture RTL of trigger is
 			VN2andVN1 : in  STD_LOGIC_VECTOR (7 downto 0)
 		);
 	end component;
-	
+
 	component delay_by_shiftregister is
 		generic (
 			DELAY : integer);
@@ -75,7 +75,6 @@ architecture RTL of trigger is
 	constant BASE_TRIG_InputPattern1 : sub_Address					:= x"11"; --r/w
 	constant BASE_TRIG_InputPattern2 : sub_Address					:= x"12"; --r/w
 	constant BASE_TRIG_InputPattern3 : sub_Address					:= x"13"; --r/w
-	
 	constant BASE_TRIG_VN2andVN1Read : sub_Address      			:= x"22"; -- r
 	
 	constant BASE_TRIG_FIXED : sub_Address 					:= x"f0" ; -- r
@@ -84,12 +83,13 @@ architecture RTL of trigger is
 	
 	signal EnableInputs : STD_LOGIC_Vector(32*4-1 downto 0) := (others => '1');
 	signal InputPatterns : STD_LOGIC_Vector(32*4-1 downto 0) := (others => '0');
-
+	constant Trig_In_Number_Start : integer := 0; -- Starting with 0
+	constant Trig_In_Number_Stop : integer := 32*4-1; -- Starting with 0
 	signal L2strobe, L2strobe_prev : std_logic;
 	
-	signal trig_in_enlarged : std_logic_vector (127 downto 0);
-	signal post_trig_in : std_logic_vector(127 downto 0);
-	signal post_trig_in_delayed : std_logic_vector(127 downto 0);
+	signal trig_in_enlarged : std_logic_vector (Trig_In_Number_Stop downto Trig_In_Number_Start);
+	signal post_trig_in : std_logic_vector(Trig_In_Number_Stop downto Trig_In_Number_Start);
+	signal post_trig_in_delayed : std_logic_vector(Trig_In_Number_Stop downto Trig_In_Number_Start);
 		
 	--------------------------------------------
 	-- Signals For PhiAngle Trigger
@@ -108,7 +108,7 @@ begin
 	-- stretch it to minimum 10*10ns
 	------------------------------------------------------------------------------------------
 	post_trig_in_stretcher:
-	for i in 0 to 127 generate
+	for i in Trig_In_Number_Start to Trig_In_Number_Stop generate
 		begin
 			single_stretcher: InputStretcher generic map (Duration => 6) 
 				PORT map(
@@ -142,7 +142,7 @@ begin
 	end process;
 			
 	inputpatterns_delayed_latch_1 : 
-	for i in 0 to 127 generate
+	for i in Trig_In_Number_Start to Trig_In_Number_Stop generate
 		begin
 			single_delay_by_shiftregister : delay_by_shiftregister
 				generic map (
@@ -157,7 +157,6 @@ begin
 				  InputPatterns(i) <= post_trig_in_delayed(i);	
 				end if;
 			end process;	
-			
 		end generate;
 		
 
