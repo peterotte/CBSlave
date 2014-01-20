@@ -78,7 +78,7 @@ architecture RTL of trigger is
 	constant BASE_TRIG_VN2andVN1Read : sub_Address      			:= x"22"; -- r
 	
 	constant BASE_TRIG_FIXED : sub_Address 					:= x"f0" ; -- r
-	constant TRIG_FIXED : std_logic_vector(31 downto 0) := x"0700000d"; 
+	constant TRIG_FIXED : std_logic_vector(31 downto 0) := x"0700000e"; 
 	--------------------------------------------
 	
 	signal EnableInputs : STD_LOGIC_Vector(32*4-1 downto 0) := (others => '1');
@@ -146,7 +146,7 @@ begin
 		begin
 			single_delay_by_shiftregister : delay_by_shiftregister
 				generic map (
-					DELAY => 20) -- needs to be measured
+					DELAY => 1) -- no delay needed actually...
 				port map (
 					CLK				=> clock100,
 					SIG_IN		=> post_trig_in(i),
